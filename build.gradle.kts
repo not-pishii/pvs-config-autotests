@@ -24,4 +24,12 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+
+    System.getProperty("pvsJsPath")
+        ?.takeIf { it.isNotBlank() }
+        ?.let { systemProperty("pvsJsPath", it) }
+
+    System.getenv("PVS_JS_PATH")
+        ?.takeIf { it.isNotBlank() }
+        ?.let { environment("PVS_JS_PATH", it) }
 }
