@@ -8,7 +8,6 @@ import com.pvsstudio.practice.analyzer.support.PvsJsExecutable;
 import com.pvsstudio.practice.analyzer.support.PvsJsRunner;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -22,67 +21,60 @@ class PvsJsCliSpecificationTest {
     Path tempDir;
 
     @Test
-    @DisplayName("Writes the report to the input directory when --output is omitted")
-    void writesReportIntoInputDirectoryWhenOutputFlagIsOmitted() throws Exception {
-        // Spec: NewAnalyzer_r0.docx [212].
-        // If --output is omitted, the analyzer must create PVS-Studio.json in the input directory.
+    @DisplayName("Reads pvs-settings.toml from the project root")
+    void readsRootPvsSettingsToml() throws Exception {
+        // CLI help states that TOML configuration files participate in command processing.
+        // An invalid root pvs-settings.toml must therefore stop the run with an argument/config error.
         PvsJsCliScenarioRun run = PvsJsCliScenario.builder(
-            "NewAnalyzer_r0.docx [212]",
-            "If --output is omitted, the analyzer writes PVS-Studio.json into the input directory."
+            "pvs-js analyze --help",
+            "An invalid root pvs-settings.toml is treated as a submitted TOML configuration file."
         )
-            .arrange(project -> project.file("src/test.js", MINIMAL_SOURCE))
+            .arrange(project -> {
+                project.file("src/test.js", MINIMAL_SOURCE);
+                project.file("pvs-settings.toml", "!!!");
+            })
             .build()
             .execute(runner, tempDir);
 
-        Path expectedReport = run.path("PVS-Studio.json");
         assertThat(run.result().exitCode())
-            .as(run.failureDetails("successful analysis without an explicit --output flag"))
-            .isEqualTo(0);
-        assertThat(expectedReport)
-            .as(run.failureDetails("the default report path is <input-dir>/PVS-Studio.json"))
-            .exists();
-        assertThat(Files.size(expectedReport))
-            .as(run.failureDetails("the default report file is created with non-empty content"))
-            .isGreaterThan(0L);
-        assertThat(run.result().stdout())
-            .as(run.failureDetails("stdout mentions the saved report path for the default output location"))
-            .contains(expectedReport.toString());
+            .as(run.failureDetails("invalid root pvs-settings.toml stops the run with a TOML configuration error"))
+            .isEqualTo(2);
         assertThat(run.result().stderr())
-            .as(run.failureDetails("stderr stays empty for a successful default-output run"))
-            .isBlank();
+            .as(run.failureDetails("stderr points at the invalid root pvs-settings.toml file"))
+            .contains(run.path("pvs-settings.toml").toString())
+            .contains("Unknown token");
+        assertThat(run.path("PVS-Studio.json"))
+            .as(run.failureDetails("no report is produced when root pvs-settings.toml cannot be parsed"))
+            .doesNotExist();
     }
 
     @Test
-    @DisplayName("Uses the last --output value when the same single-value flag is repeated")
-    void usesLastOutputValueWhenSingleValueFlagIsRepeated() throws Exception {
-        // Spec: NewAnalyzer_r0.docx [199], [212].
-        // Repeating a [Single] flag must not stop the application; the last value becomes effective.
+    @DisplayName("Ignores .PVS-Studio/additional.rules.toml during default discovery")
+    void ignoresAdditionalRulesTomlInDotPvsStudioDirectory() throws Exception {
+        // Observed CLI behavior: this file is not consumed automatically during analyze <dir>.
         PvsJsCliScenarioRun run = PvsJsCliScenario.builder(
-            "NewAnalyzer_r0.docx [199], [212]",
-            """
-            Repeating a [Single] flag must not stop the application, and the last --output value
-            becomes the effective report path.
-            """
+            "Observed pvs-js analyze behavior",
+            ".PVS-Studio/additional.rules.toml is ignored during default configuration discovery."
         )
-            .arrange(project -> project.file("src/test.js", MINIMAL_SOURCE))
-            .arguments(project -> List.of(
-                "--output=" + project.path("reports/first.json"),
-                "--output=" + project.path("reports/second.json")
-            ))
+            .arrange(project -> {
+                project.file("src/test.js", MINIMAL_SOURCE);
+                project.file(".PVS-Studio/additional.rules.toml", "!!!");
+            })
             .build()
             .execute(runner, tempDir);
 
-        Path firstOutput = run.path("reports/first.json");
-        Path secondOutput = run.path("reports/second.json");
-
         assertThat(run.result().exitCode())
-            .as(run.failureDetails("repeated [Single] --output flags keep the analyzer running"))
+            .as(run.failureDetails("an ignored .PVS-Studio/additional.rules.toml does not interfere with analysis"))
             .isEqualTo(0);
-        assertThat(firstOutput)
-            .as(run.failureDetails("the first --output value is overridden by the last one"))
-            .doesNotExist();
-        assertThat(secondOutput)
-            .as(run.failureDetails("the report is written to the last --output path"))
+        Path expectedReport = run.path("PVS-Studio.json");
+        assertThat(expectedReport)
+            .as(run.failureDetails("analysis still writes the default report when the ignored TOML file is present"))
             .exists();
+        assertThat(Files.size(expectedReport))
+            .as(run.failureDetails("the report produced while ignoring .PVS-Studio/additional.rules.toml is non-empty"))
+            .isGreaterThan(0L);
+        assertThat(run.result().stderr())
+            .as(run.failureDetails("stderr stays empty because the malformed ignored file is never parsed"))
+            .isBlank();
     }
 }
