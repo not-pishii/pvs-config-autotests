@@ -1,5 +1,6 @@
 plugins {
     java
+    application
 }
 
 group = "com.pvsstudio.practice"
@@ -16,10 +17,10 @@ java {
 }
 
 dependencies {
-    testImplementation(platform("org.junit:junit-bom:6.1.1"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testImplementation("org.assertj:assertj-core:3.27.7")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    implementation(platform("org.junit:junit-bom:6.1.1"))
+    implementation("org.junit.jupiter:junit-jupiter")
+    implementation("org.junit.platform:junit-platform-launcher")
+    implementation("org.assertj:assertj-core:3.27.7")
 }
 
 tasks.test {
