@@ -23,6 +23,14 @@ dependencies {
     implementation("org.assertj:assertj-core:3.27.7")
 }
 
-application {
-    mainClass = "com.pvsstudio.practice.analyzer.CliAnalyzerAutotests"
+tasks.test {
+    useJUnitPlatform()
+
+    System.getProperty("pvsJsPath")
+        ?.takeIf { it.isNotBlank() }
+        ?.let { systemProperty("pvsJsPath", it) }
+
+    System.getenv("PVS_JS_PATH")
+        ?.takeIf { it.isNotBlank() }
+        ?.let { environment("PVS_JS_PATH", it) }
 }
